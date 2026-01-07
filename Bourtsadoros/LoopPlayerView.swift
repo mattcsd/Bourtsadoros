@@ -13,9 +13,9 @@ struct LoopPlayerView: View {
     @State private var bpm: Double = 120
     @State private var audioPlayer: AVAudioPlayer?
     @State private var progress: CGFloat = 0
-    @State private var updateTimer: Timer?
+    @State private var animationTimer: Timer?
+    @State private var audioDuration: TimeInterval = 1.0
     
-    // Add this state for file selection
     @State private var selectedAudioFile = "la_bourtsadoros"
     
     let circleSize: CGFloat = 200
@@ -24,85 +24,206 @@ struct LoopPlayerView: View {
         VStack(spacing: 40) {
             // Circle Animation
             ZStack {
+                // Background track - thicker for better visual
                 Circle()
-                    .stroke(Color.gray.opacity(0.3), lineWidth: 10)
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 12)
                     .frame(width: circleSize, height: circleSize)
                 
+                // Progress fill with smoother gradient
                 Circle()
                     .trim(from: 0, to: progress)
                     .stroke(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                        AngularGradient(
+                            gradient: Gradient(colors: [
+                                .blue,
+                                .purple,
+                                Color(red: 0.2, green: 0.5, blue: 1.0),
+                                .blue
+                            ]),
+                            center: .center,
+                            startAngle: .degrees(0),
+                            endAngle: .degrees(360)
                         ),
-                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                        style: StrokeStyle(
+                            lineWidth: 12,
+                            lineCap: .round,
+                            lineJoin: .round
+                        )
                     )
                     .frame(width: circleSize, height: circleSize)
                     .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 0.05), value: progress)
+                    .shadow(color: .blue.opacity(0.3), radius: 5, x: 0, y: 0)
                 
-                VStack {
-                    Text("\(Int(bpm)) BPM")
-                        .font(.title)
-                        .fontWeight(.bold)
+                // Inner shadow circle for depth
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 2
+                    )
+                    .frame(width: circleSize - 24, height: circleSize - 24)
+                
+                // Center display
+                VStack(spacing: 5) {
+                    Text("\(Int(bpm))")
+                        .font(.system(size: 44, weight: .heavy, design: .rounded))
                         .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
                     
-                    Text("Loop Speed")
+                    Text("BPM")
                         .font(.caption)
+                        .fontWeight(.medium)
                         .foregroundColor(.gray)
                 }
             }
             
             // BPM Controls
-            VStack(spacing: 20) {
-                Text("Playback Speed")
-                    .font(.headline)
+            VStack(spacing: 25) {
+                Text("BPM Selector")
+                    .font(.title3)
+                    .fontWeight(.semibold)
                     .foregroundColor(.white)
                 
-                HStack {
-                    Text("40")
-                        .foregroundColor(.gray)
-                    
-                    Slider(value: $bpm, in: 40...240, step: 1)
-                        .onChange(of: bpm) { newValue in
-                            updatePlaybackSpeed()
+                VStack(spacing: 15) {
+                    // Custom styled slider
+                    ZStack {
+                        // Background track
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(height: 6)
+                        
+                        // Fill track
+                        HStack {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.blue, .purple],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: CGFloat((bpm - 40) / 200) * 250, height: 6)
+                            
+                            Spacer(minLength: 0)
                         }
+                        .frame(width: 250)
+                        
+                        // Slider thumb
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 24, height: 24)
+                            .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 2)
+                            .offset(x: CGFloat((bpm - 40) / 200) * 250 - 125)
+                    }
+                    .frame(width: 250, height: 30)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let newBPM = min(max(40, (value.location.x / 250) * 200 + 40), 240)
+                                bpm = newBPM
+                                updatePlaybackSpeed()
+                            }
+                    )
                     
-                    Text("240")
-                        .foregroundColor(.gray)
-                }
-                .padding(.horizontal)
-                
-                HStack(spacing: 30) {
-                    Button(action: { bpm = max(40, bpm - 5) }) {
-                        Image(systemName: "minus.circle.fill")
-                            .font(.title)
-                            .foregroundColor(.blue)
+                    HStack(spacing: 30) {
+                        Button(action: {
+                            bpm = max(40, bpm - 1)
+                            updatePlaybackSpeed()
+                        }) {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                                .background(Circle().fill(Color.white).frame(width: 30, height: 30))
+                        }
+                        
+                        Text("\(Int(bpm))")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .frame(width: 80)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 8)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                            )
+                        
+                        Button(action: {
+                            bpm = min(240, bpm + 1)
+                            updatePlaybackSpeed()
+                        }) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                                .background(Circle().fill(Color.white).frame(width: 30, height: 30))
+                        }
                     }
                     
-                    Text("\(Int(bpm))")
-                        .font(.title2)
-                        .frame(width: 60)
-                    
-                    Button(action: { bpm = min(240, bpm + 5) }) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title)
-                            .foregroundColor(.blue)
+                    // BPM presets (optional)
+                    HStack(spacing: 10) {
+                        ForEach([60, 90, 120, 150], id: \.self) { presetBPM in
+                            Button("\(presetBPM)") {
+                                bpm = Double(presetBPM)
+                                updatePlaybackSpeed()
+                            }
+                            .font(.caption)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                bpm == Double(presetBPM) ?
+                                Color.blue : Color.gray.opacity(0.2)
+                            )
+                            .foregroundColor(bpm == Double(presetBPM) ? .white : .gray)
+                            .cornerRadius(15)
+                        }
                     }
                 }
             }
             
-            // Play/Pause Button
-            Button(action: togglePlayback) {
-                HStack(spacing: 15) {
-                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.system(size: 60))
-                        .foregroundColor(isPlaying ? .red : .green)
-                    
-                    Text(isPlaying ? "Pause Loop" : "Play Loop")
+            // Play/Pause Controls
+            HStack(spacing: 40) {
+                Button(action: restartLoop) {
+                    Image(systemName: "backward.end.fill")
                         .font(.title2)
-                        .foregroundColor(.white)
+                        .foregroundColor(.gray)
+                        .padding(12)
+                        .background(Circle().fill(Color.gray.opacity(0.2)))
+                }
+                
+                Button(action: togglePlayback) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: isPlaying ?
+                                        [Color.red.opacity(0.3), Color.red.opacity(0.1)] :
+                                        [Color.green.opacity(0.3), Color.green.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 90, height: 90)
+                            .shadow(color: isPlaying ? .red.opacity(0.3) : .green.opacity(0.3),
+                                   radius: 10, x: 0, y: 5)
+                        
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(isPlaying ? .red : .green)
+                    }
+                }
+                
+                Button(action: {
+                    audioPlayer?.volume = audioPlayer?.volume == 0 ? 1 : 0
+                }) {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.title2)
+                        .foregroundColor(.gray)
+                        .padding(12)
+                        .background(Circle().fill(Color.gray.opacity(0.2)))
                 }
             }
             .padding(.top, 20)
@@ -125,71 +246,109 @@ struct LoopPlayerView: View {
         }
         
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback)
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
             
             audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer?.numberOfLoops = -1
             audioPlayer?.enableRate = true
-            audioPlayer?.rate = 1.0 // Start at normal speed
+            audioPlayer?.rate = Float(bpm / 120.0)
             audioPlayer?.prepareToPlay()
             
+            audioDuration = audioPlayer?.duration ?? 1.0
+            
         } catch {
-            print("Error loading audio: \(error)")
+            print("Error loading audio: \(error.localizedDescription)")
         }
     }
     
     func togglePlayback() {
+        guard let player = audioPlayer else { return }
+        
         if isPlaying {
-            audioPlayer?.pause()
-            updateTimer?.invalidate()
-            updateTimer = nil
+            player.pause()
+            stopAnimation()
         } else {
-            audioPlayer?.play()
-            startProgressUpdates()
+            player.play()
+            startSmoothAnimation()
         }
+        
         isPlaying.toggle()
     }
     
-    func startProgressUpdates() {
-        updateTimer?.invalidate()
+    // NEW: Smoother animation with CADisplayLink-like approach
+    func startSmoothAnimation() {
+        stopAnimation()
         
-        // Calculate how long one loop should take at current BPM
-        // Assuming the audio file is a 1-bar loop at 120 BPM
-        let loopDuration = 60.0 / bpm * 2 // For a 2-beat bar at current BPM
+        let loopDuration = 60.0 / bpm
+        let startTime = Date().timeIntervalSince1970
         
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
-            guard let player = audioPlayer else { return }
+        // Use a faster timer for smoother animation
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.008, repeats: true) { timer in
+            let currentTime = Date().timeIntervalSince1970
+            let elapsed = currentTime - startTime
             
-            // Calculate progress based on BPM timing
-            let elapsedTime = player.currentTime.truncatingRemainder(dividingBy: loopDuration)
-            let newProgress = CGFloat(elapsedTime / loopDuration)
+            // Calculate progress with smoothing
+            let rawProgress = elapsed.truncatingRemainder(dividingBy: loopDuration) / loopDuration
+            
+            // Apply easing function for smoother motion
+            let smoothedProgress = easeInOutCubic(rawProgress)
             
             DispatchQueue.main.async {
-                withAnimation(.linear(duration: 0.05)) {
-                    progress = newProgress
+                withAnimation(.linear(duration: 0.008)) {
+                    progress = smoothedProgress
                 }
             }
         }
+        
+        // Ensure timer runs on main thread
+        if let timer = animationTimer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
+    }
+    
+    // Easing function for smoother animation
+    func easeInOutCubic(_ x: Double) -> Double {
+        return x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2
+    }
+    
+    func stopAnimation() {
+        animationTimer?.invalidate()
+        animationTimer = nil
     }
     
     func updatePlaybackSpeed() {
         guard let player = audioPlayer else { return }
         
-        // Change playback rate based on BPM
-        // Base rate is at 120 BPM = 1.0
+        // Update playback rate
         player.rate = Float(bpm / 120.0)
         
-        // Restart progress updates if playing
+        // Restart animation with new BPM if playing
         if isPlaying {
-            updateTimer?.invalidate()
-            startProgressUpdates()
+            stopAnimation()
+            startSmoothAnimation()
+        }
+    }
+    
+    func restartLoop() {
+        guard let player = audioPlayer else { return }
+        
+        // Restart audio
+        player.currentTime = 0
+        
+        // Smooth reset animation
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            progress = 0
+        }
+        
+        // Restart smooth animation if playing
+        if isPlaying {
+            startSmoothAnimation()
         }
     }
     
     func cleanup() {
         audioPlayer?.stop()
-        updateTimer?.invalidate()
-        updateTimer = nil
+        stopAnimation()
     }
 }
