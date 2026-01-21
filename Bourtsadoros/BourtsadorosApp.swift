@@ -2,7 +2,7 @@
 //  BourtsadorosApp.swift
 //  Bourtsadoros
 //
-//  Created by kez542 on 7/1/26.
+//  Created by Matthaios Tsikalakis-Rinter on 7/1/26.
 //
 
 import SwiftUI

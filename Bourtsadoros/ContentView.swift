@@ -12,7 +12,12 @@ struct ContentView: View {
         TabView {
             LoopPlayerView()
                 .tabItem {
-                    Label("Metronome", systemImage: "metronome")
+                    Label("Bourtsa", systemImage: "repeat.circle.fill")
+                }
+            
+            MetronomeView()
+                .tabItem {
+                    Label("Metronome", systemImage: "metronome.fill")
                 }
             
             TunerView()
@@ -20,7 +25,7 @@ struct ContentView: View {
                     Label("Tuner", systemImage: "tuningfork")
                 }
         }
-        .preferredColorScheme(.dark) // Force dark mode
-        .accentColor(.blue) // Set accent color
+        .preferredColorScheme(.dark)
+        .accentColor(.blue)
     }
 }
