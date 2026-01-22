@@ -4,15 +4,21 @@
 //
 //  Created by Matthaios Tsikalakis-Reeder on 7/1/26.
 //
-
+// Tuner/TunerViewModel.swift
 import Foundation
 import Combine
 
 class TunerViewModel: ObservableObject {
     @Published var selectedInstrument: Instrument = .guitar
     @Published var currentFrequency: Double = 0
+    @Published var currentNote: String = "A"
     @Published var targetNote: String = "A"
     @Published var needlePosition: CGFloat = 0
+    @Published var isListening = false
+    @Published var errorMessage: String?
+    
+    private let audioService = AudioInputService()
+    private var cancellables = Set<AnyCancellable>()
     
     // Guitar strings
     let guitarStrings: [TuningString] = [
@@ -36,33 +42,93 @@ class TunerViewModel: ObservableObject {
         selectedInstrument == .guitar ? guitarStrings : bassStrings
     }
     
-    func updateFrequency(_ frequency: Double, targetNote: String) {
-        currentFrequency = frequency
-        self.targetNote = targetNote
-        updateNeedlePosition()
+    init() {
+        setupBindings()
+    }
+    
+    private func setupBindings() {
+        // Listen for frequency updates
+        audioService.$currentFrequency
+            .receive(on: RunLoop.main)
+            .sink { [weak self] frequency in
+                self?.currentFrequency = frequency
+                self?.updateNeedlePosition()
+            }
+            .store(in: &cancellables)
+        
+        audioService.$currentNote
+            .receive(on: RunLoop.main)
+            .sink { [weak self] note in
+                self?.currentNote = note
+            }
+            .store(in: &cancellables)
+        
+        audioService.$isListening
+            .receive(on: RunLoop.main)
+            .assign(to: &$isListening)
+        
+        audioService.$errorMessage
+            .receive(on: RunLoop.main)
+            .assign(to: &$errorMessage)
+        
+        // When current note changes, update target note
+        $currentNote
+            .receive(on: RunLoop.main)
+            .assign(to: &$targetNote)
+    }
+    
+    func toggleListening() {
+        if isListening {
+            stopListening()
+        } else {
+            startListening()
+        }
+    }
+    
+    func startListening() {
+        audioService.startListening()
+    }
+    
+    func stopListening() {
+        audioService.stopListening()
     }
     
     private func updateNeedlePosition() {
-        let baseFreq: Double = 440.0
+        let targetFreq: Double
+        
+        if let string = currentStrings.first(where: { $0.note == targetNote }) {
+            targetFreq = string.frequency
+        } else {
+            targetFreq = 440.0 // Default to A440
+        }
+        
         let maxOffset: CGFloat = 100
         
-        let cents = 1200 * log2(currentFrequency / baseFreq)
-        let normalized = cents / 50.0
-        let offset = CGFloat(normalized) * maxOffset
+        if currentFrequency > 0 && targetFreq > 0 {
+            let cents = 1200 * log2(currentFrequency / targetFreq)
+            let normalized = cents / 50.0
+            needlePosition = CGFloat(normalized) * maxOffset
+        } else {
+            needlePosition = 0
+        }
         
-        needlePosition = max(-maxOffset, min(maxOffset, offset))
+        // Clamp to bounds
+        needlePosition = min(max(needlePosition, -100), 100)
     }
     
     func isStringInTune(_ string: TuningString) -> Bool {
-        guard let targetFreq = currentStrings.first(where: { $0.note == string.note })?.frequency else {
-            return false
-        }
+        guard currentFrequency > 0 else { return false }
         
-        return abs(currentFrequency - targetFreq) < 1.0
+        let frequencyDiff = abs(currentFrequency - string.frequency)
+        let tolerance = 1.0
+        
+        return frequencyDiff < tolerance
     }
     
     // For testing/demo
     func testFrequency(_ frequency: Double, note: String) {
-        updateFrequency(frequency, targetNote: note)
+        audioService.simulateFrequency(frequency)
+        targetNote = note
+        updateNeedlePosition()
     }
 }

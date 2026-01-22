@@ -5,6 +5,7 @@
 //  Created by Matthaios Tsikalakis-Reeder on 7/1/26.
 //
 
+
 import Foundation
 import AVFoundation
 import Combine
@@ -29,20 +30,56 @@ class MetronomeViewModel: ObservableObject {
     
     private func setupAudio() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback)
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
             
-            // Using system sound (you can replace with custom sound files)
-            let soundURL = URL(fileURLWithPath: "/System/Library/Audio/UISounds/Tock.caf")
-            metronomePlayer = try AVAudioPlayer(contentsOf: soundURL)
-            metronomePlayer?.prepareToPlay()
+            // Load custom click sounds from bundle
+            if let clickURL = Bundle.main.url(forResource: "metronome", withExtension: "wav") {
+                metronomePlayer = try AVAudioPlayer(contentsOf: clickURL)
+                metronomePlayer?.prepareToPlay()
+                metronomePlayer?.volume = 0.7
+            }
             
-            accentPlayer = try AVAudioPlayer(contentsOf: soundURL)
-            accentPlayer?.prepareToPlay()
-            accentPlayer?.volume = 1.5
+            if let accentURL = Bundle.main.url(forResource: "metronome_accent", withExtension: "wav") {
+                accentPlayer = try AVAudioPlayer(contentsOf: accentURL)
+                accentPlayer?.prepareToPlay()
+                accentPlayer?.volume = 1.0
+            }
             
         } catch {
             print("Error setting up audio: \(error)")
+            
+            // Fallback: Create synthetic click sound if files not found
+            createSyntheticSounds()
+        }
+    }
+    
+    // Fallback method if audio files aren't found
+    private func createSyntheticSounds() {
+        print("Creating synthetic metronome sounds...")
+        
+        // For now, we'll use the same sound but with different volumes
+        // In a real app, you'd generate proper tones
+        if let defaultURL = Bundle.main.url(forResource: "metronome_click", withExtension: "wav") ??
+           Bundle.main.url(forResource: "la_bourtsadoros", withExtension: "wav") {
+            
+            do {
+                let basePlayer = try AVAudioPlayer(contentsOf: defaultURL)
+                basePlayer.prepareToPlay()
+                
+                // Clone for regular click
+                metronomePlayer = try AVAudioPlayer(contentsOf: defaultURL)
+                metronomePlayer?.volume = 0.5
+                metronomePlayer?.prepareToPlay()
+                
+                // Clone for accent
+                accentPlayer = try AVAudioPlayer(contentsOf: defaultURL)
+                accentPlayer?.volume = 1.0
+                accentPlayer?.prepareToPlay()
+                
+            } catch {
+                print("Could not create fallback sounds: \(error)")
+            }
         }
     }
     
@@ -77,17 +114,28 @@ class MetronomeViewModel: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: beatDuration, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             
-            if self.beatNumber == 0 && self.settings.accentFirstBeat {
-                self.accentPlayer?.currentTime = 0
-                self.accentPlayer?.play()
-            } else {
-                self.metronomePlayer?.currentTime = 0
-                self.metronomePlayer?.play()
-            }
+            // Play sound for current beat
+            self.playBeatSound()
             
+            // Move to next beat
             self.beatNumber = (self.beatNumber + 1) % self.settings.beatsPerMeasure
         }
         
+        // Start smooth animation
+        startAnimationTimer(beatDuration: beatDuration)
+    }
+    
+    private func playBeatSound() {
+        if beatNumber == 0 && settings.accentFirstBeat {
+            accentPlayer?.currentTime = 0
+            accentPlayer?.play()
+        } else {
+            metronomePlayer?.currentTime = 0
+            metronomePlayer?.play()
+        }
+    }
+    
+    private func startAnimationTimer(beatDuration: TimeInterval) {
         animationTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             
@@ -96,6 +144,11 @@ class MetronomeViewModel: ObservableObject {
             
             DispatchQueue.main.async {
                 self.progress = newProgress
+                
+                // Reset when we complete a beat
+                if self.progress >= 1.0 {
+                    self.progress = 0
+                }
             }
         }
     }

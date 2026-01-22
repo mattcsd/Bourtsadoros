@@ -4,19 +4,14 @@
 //
 //  Created by Matthaios Tsikalakis-Reeder on 22/1/26.
 //
-
+// Shared/Services/AudioService.swift
 import AVFoundation
 
 class AudioService {
     static let shared = AudioService()
     
     private init() {
-        setupAudioSession()
-    }
-    
-    private func setupAudioSession() {
-        try? AVAudioSession.sharedInstance().setCategory(.playback)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        // Don't set up session here - let each feature set up what it needs
     }
     
     func createPlayer(for filename: String, extension: String = "wav") -> AVAudioPlayer? {
