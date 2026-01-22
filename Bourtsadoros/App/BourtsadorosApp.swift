@@ -1,8 +1,8 @@
 //
-//  BourtsadorosApp.swift
+//  App/BourtsadorosApp.swift
 //  Bourtsadoros
 //
-//  Created by Matthaios Tsikalakis-Rinter on 7/1/26.
+//  Created by Matthaios Tsikalakis-Reeder on 22/1/26.
 //
 
 import SwiftUI

@@ -1,9 +1,10 @@
 //
-//  ContentView.swift
+//  App/ContentView.swift
 //  Bourtsadoros
 //
-//  Created by Matthaios Tsikalakis-Reeder on 7/1/26.
+//  Created by Matthaios Tsikalakis-Reeder on 22/1/26.
 //
+
 
 import SwiftUI
 

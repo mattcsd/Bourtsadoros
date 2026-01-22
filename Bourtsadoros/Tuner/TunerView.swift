@@ -1,34 +1,15 @@
 //
-//  TunerView.swift
+//  Tuner/TunerView.swift
 //  Bourtsadoros
 //
-//  Created by Matthaios Tsikalakis-Reederon 7/1/26.
+//  Created by Matthaios Tsikalakis-Reeder on 7/1/26.
 //
+
 
 import SwiftUI
 
 struct TunerView: View {
-    // Guitar strings with Double frequencies
-    let guitarStrings: [(String, Double)] = [
-        ("E", 329.63),  // High E
-        ("B", 246.94),  // B
-        ("G", 196.00),  // G
-        ("D", 146.83),  // D
-        ("A", 110.00),  // A
-        ("E", 82.41)    // Low E
-    ]
-    
-    // Bass strings with Double frequencies (UPDATE THESE)
-    let bassStrings: [(String, Double)] = [
-        ("G", 98.0),    // UPDATE with actual frequency
-        ("D", 73.42),   // UPDATE with actual frequency
-        ("A", 55.0),    // UPDATE with actual frequency
-        ("E", 41.20)    // UPDATE with actual frequency
-    ]
-    
-    @State private var selectedInstrument = "Guitar"
-    @State private var currentFrequency: Double = 0
-    @State private var targetNote = "A"
+    @StateObject private var viewModel = TunerViewModel()
     
     var body: some View {
         VStack(spacing: 30) {
@@ -39,20 +20,21 @@ struct TunerView: View {
                 .foregroundColor(.white)
             
             // Instrument Picker
-            Picker("Instrument", selection: $selectedInstrument) {
-                Text("Guitar").tag("Guitar")
-                Text("Bass").tag("Bass")
+            Picker("Instrument", selection: $viewModel.selectedInstrument) {
+                ForEach(Instrument.allCases, id: \.self) { instrument in
+                    Text(instrument.rawValue).tag(instrument)
+                }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
             
             // Frequency Display
             VStack(spacing: 5) {
-                Text("\(currentFrequency, specifier: "%.1f") Hz")
+                Text("\(viewModel.currentFrequency, specifier: "%.1f") Hz")
                     .font(.system(size: 48, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 
-                Text("Target: \(targetNote)")
+                Text("Target: \(viewModel.targetNote)")
                     .font(.title3)
                     .foregroundColor(.gray)
             }
@@ -87,22 +69,22 @@ struct TunerView: View {
                 Rectangle()
                     .fill(Color.red)
                     .frame(width: 4, height: 80)
-                    .offset(x: needlePosition(for: currentFrequency))
+                    .offset(x: viewModel.needlePosition)
             }
             .frame(height: 120)
             .padding(.horizontal)
             
             // Strings Display
             VStack(spacing: 12) {
-                ForEach(getCurrentStrings(), id: \.0) { stringName, frequency in
+                ForEach(viewModel.currentStrings) { string in
                     HStack {
-                        Text(stringName)
+                        Text(string.displayName)
                             .font(.title2)
                             .fontWeight(.semibold)
                             .frame(width: 50)
                             .foregroundColor(.white)
                         
-                        Text("\(frequency, specifier: "%.1f") Hz")
+                        Text("\(string.frequency, specifier: "%.1f") Hz")
                             .font(.title3)
                             .foregroundColor(.gray)
                         
@@ -110,8 +92,7 @@ struct TunerView: View {
                         
                         // Tuning indicator
                         Circle()
-                            .fill(isStringInTune(stringName, frequency: frequency) ?
-                                  Color.green : Color.gray.opacity(0.5))
+                            .fill(viewModel.isStringInTune(string) ? Color.green : Color.gray.opacity(0.5))
                             .frame(width: 24, height: 24)
                     }
                     .padding()
@@ -123,7 +104,7 @@ struct TunerView: View {
                 }
             }
             
-            // Test Buttons (remove when implementing real microphone)
+            // Test Buttons (for demo)
             VStack(spacing: 10) {
                 Text("Test Frequencies")
                     .font(.caption)
@@ -131,22 +112,19 @@ struct TunerView: View {
                 
                 HStack(spacing: 15) {
                     Button("A (440 Hz)") {
-                        currentFrequency = 440.0
-                        targetNote = "A"
+                        viewModel.testFrequency(440.0, note: "A")
                     }
-                    .buttonStyle(TunerButtonStyle(color: .blue))
+                    .tunerButtonStyle(color: .blue)
                     
                     Button("E (329.6 Hz)") {
-                        currentFrequency = 329.63
-                        targetNote = "E"
+                        viewModel.testFrequency(329.63, note: "E")
                     }
-                    .buttonStyle(TunerButtonStyle(color: .blue))
+                    .tunerButtonStyle(color: .blue)
                     
                     Button("Detune") {
-                        currentFrequency = 435.0
-                        targetNote = "A"
+                        viewModel.testFrequency(435.0, note: "A")
                     }
-                    .buttonStyle(TunerButtonStyle(color: .orange))
+                    .tunerButtonStyle(color: .orange)
                 }
             }
             .padding(.top, 20)
@@ -156,49 +134,25 @@ struct TunerView: View {
         .padding(.top)
         .background(Color.black.ignoresSafeArea())
     }
-    
-    func getCurrentStrings() -> [(String, Double)] {
-        return selectedInstrument == "Guitar" ? guitarStrings : bassStrings
-    }
-    
-    func isStringInTune(_ string: String, frequency: Double) -> Bool {
-        // Check if current frequency is within ±1 Hz of target
-        guard let targetFreq = getCurrentStrings().first(where: { $0.0 == string })?.1 else {
-            return false
-        }
-        
-        return abs(currentFrequency - targetFreq) < 1.0
-    }
-    
-    func needlePosition(for frequency: Double) -> CGFloat {
-        // Center around A440
-        let baseFreq: Double = 440.0
-        let maxOffset: CGFloat = 100
-        
-        // Calculate cents difference (musical measurement)
-        let cents = 1200 * log2(frequency / baseFreq)
-        
-        // Map cents to screen position (±50 cents = full width)
-        let normalized = cents / 50.0
-        let offset = CGFloat(normalized) * maxOffset
-        
-        // Clamp between bounds
-        return max(-maxOffset, min(maxOffset, offset))
-    }
 }
 
-// Custom button style for tuner
-struct TunerButtonStyle: ButtonStyle {
+// Helper View Modifier for Tuner buttons
+struct TunerButtonStyle: ViewModifier {
     var color: Color
     
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+    func body(content: Content) -> some View {
+        content
             .font(.caption)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(color.opacity(0.2))
             .foregroundColor(color)
             .cornerRadius(8)
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+    }
+}
+
+extension View {
+    func tunerButtonStyle(color: Color) -> some View {
+        self.modifier(TunerButtonStyle(color: color))
     }
 }
